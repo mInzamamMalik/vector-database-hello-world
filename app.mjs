@@ -5,7 +5,7 @@ import './config/index.mjs';
 import { customAlphabet } from 'nanoid'
 const nanoid = customAlphabet('1234567890abcdefghijklmnopqrstuvwxyz', 10)
 import questions from './data/questions.json' assert {type: 'json'};
-
+import axios from 'axios'
 
 const configuration = new Configuration({
     apiKey: process.env.OPENAI_API_KEY,
@@ -24,7 +24,7 @@ try {
 
     // // will always be created form pine cone dashboard, 
     // // it takes so much time like hours to initialize, 
-    // //maybe because of free version
+    // // maybe because of free version
 
     // console.log(
     //     await pinecone.createIndex({
@@ -36,12 +36,12 @@ try {
     // )
 
 
-    const insertSingleDocumentIntoPinecone = async () => {
+    const insertSingleDocumentIntoPinecone = async (textData) => {
         // since pine cone can only store data in vector form (numeric representation of text)
         // we will have to convert text data into vector of a certain dimension (1536 in case of openai)
         const response = await openai.createEmbedding({
             model: "text-embedding-ada-002",
-            input: "The food was delicious and the waiter...",
+            input: textData,
         });
         const vector = response?.data?.data[0]?.embedding
         console.log("vector: ", vector);
@@ -52,7 +52,7 @@ try {
         const upsertRequest = {
             vectors: [
                 {
-                    id: "vec1", // unique id
+                    id: nanoid(), // unique id, // unique id
                     values: vector,
                     metadata: {
                         genre: "drama",
@@ -71,7 +71,7 @@ try {
         const upsertResponse = await index.upsert({ upsertRequest });
         console.log("upsertResponse: ", upsertResponse);
     }
-    // insertSingleDocumentIntoPinecone()
+    // insertSingleDocumentIntoPinecone("this is some text data to be inserted into pinecone index")
 
 
 
@@ -99,6 +99,8 @@ try {
             namespace: process.env.PINECONE_NAME_SPACE,
         };
 
+        console.log("allQuestionsVector: ", allQuestionsVector);
+
         allQuestionsVector.map(eachVectorResponse => {
 
             const originalText = JSON.parse(eachVectorResponse.config.data).input
@@ -108,7 +110,7 @@ try {
             console.log("vectorRepresentation: ", vectorRepresentation);
 
             upsertRequest.vectors.push({
-                id: "vec1", // unique id
+                id: nanoid(), // unique id
                 values: vectorRepresentation,
                 metadata: {
                     originalText: originalText,
@@ -117,6 +119,8 @@ try {
 
         })
 
+        console.log("upsertRequest: ", upsertRequest);
+
         console.log("inserting all vectors into pinecone vector database... please wait");
 
         const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
@@ -124,7 +128,71 @@ try {
         console.log("upsertResponse: ", upsertResponse);
 
     }
-    insertMultipleDocumentIntoPinecone();
+    // insertMultipleDocumentIntoPinecone();
+
+
+    const deleteAllVectorsOfIndex = async () => {
+
+        const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+        const deleteResponse = await index.delete1({
+            deleteAll: true,
+            namespace: process.env.PINECONE_NAME_SPACE
+        })
+        console.log("deleteResponse: ", deleteResponse);
+
+    }
+    // deleteAllVectorsOfIndex();
+
+    const queryPineconeIndex = async (queryText, numberOfResults) => {
+
+        const response = await openai.createEmbedding({
+            model: "text-embedding-ada-002",
+            input: queryText,
+        });
+        const vector = response?.data?.data[0]?.embedding
+        console.log("vector: ", vector);
+        // [ 0.0023063174, -0.009358601, 0.01578391, ... , 0.01678391, ]
+
+        const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+        const queryResponse = await index.query({
+            queryRequest: {
+                vector: vector,
+                // id: "vec1",
+                topK: numberOfResults,
+                includeValues: true,
+                includeMetadata: true,
+                namespace: process.env.PINECONE_NAME_SPACE
+            }
+        });
+
+        queryResponse.matches.map(eachMatch => {
+            console.log(`score ${eachMatch.score.toFixed(1)} => ${JSON.stringify(eachMatch.metadata)}\n\n`);
+        })
+        console.log(`${queryResponse.matches.length} records found `);
+    }
+    
+    // queryPineconeIndex("fsdfsdfsdf", 100)
+
+
+
+
+
+
+    const getIndexStats = async () => {
+
+        const indexesList = await pinecone.listIndexes();
+        console.log("indexesList: ", indexesList);
+
+        const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+        const indexStats = await index.describeIndexStats({
+            describeIndexStatsRequest: {
+                filter: {},
+            },
+        });
+        console.log("indexStats: ", indexStats);
+    }
+    // getIndexStats()
+
 
 
 
