@@ -71,7 +71,7 @@ try {
         const upsertResponse = await index.upsert({ upsertRequest });
         console.log("upsertResponse: ", upsertResponse);
     }
-    // insertSingleDocumentIntoPinecone("this is some text data to be inserted into pinecone index")
+    insertSingleDocumentIntoPinecone("this is some text data to be inserted into pinecone index")
 
 
 
