@@ -118,7 +118,7 @@ router.put('/faq/:faqId', async (req, res, next) => {
     const upsertRequest = {
         vectors: [
             {
-                id: nanoid(), // unique id,
+                id: req.params.faqId, // unique id,
                 values: vector,
                 metadata: {
                     question: req.body.question,
@@ -137,6 +137,12 @@ router.put('/faq/:faqId', async (req, res, next) => {
 
     res.send('faq updated');
 })
+router.delete('/faqs/:faqId', async (req, res, next) => {
+
+   
+    res.send(' deleted ');
+})
+
 router.delete('/faqs', async (req, res, next) => {
 
     const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
