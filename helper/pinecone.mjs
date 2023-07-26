@@ -132,7 +132,8 @@ const insertMultipleDocumentIntoPinecone = async () => {
 
 
 const deleteAllVectorsOfIndex = async () => {
-
+    // https://docs.pinecone.io/docs/node-client#delete-vectors
+    
     const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
     const deleteResponse = await index.delete1({
         deleteAll: true,

@@ -88,9 +88,30 @@ router.get('/faqs', async (req, res, next) => {
 
     res.send(response);
 })
+router.get('/faq/:faqId', async (req, res, next) => {
+
+    const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+    const queryResponse = await index.query({
+        queryRequest: {
+            id: req.params.faqId,
+            topK: 1,
+            includeValues: true,
+            includeMetadata: true,
+            namespace: process.env.PINECONE_NAME_SPACE
+        }
+    });
+
+    const response = [];
+
+    queryResponse.matches.map(eachMatch => {
+        // console.log(`score ${eachMatch.score.toFixed(1)} => ${JSON.stringify(eachMatch.metadata)}\n\n`);
+        response.push({ id: eachMatch.id, ...eachMatch.metadata });
+    })
+    console.log(`${queryResponse.matches.length} records found `);
+    res.send(response[0]);
+})
 
 
-// PUT     /api/v1/post/:userId/:postId
 router.put('/faq/:faqId', async (req, res, next) => {
     if (
         !req.body.question
@@ -106,6 +127,23 @@ router.put('/faq/:faqId', async (req, res, next) => {
         } `);
         return;
     }
+
+    const queryResponse = await index.query({
+        queryRequest: {
+            id: req.params.faqId,
+            topK: 1,
+            includeValues: true,
+            includeMetadata: true,
+            namespace: process.env.PINECONE_NAME_SPACE
+        }
+    });
+
+    if (queryResponse.matches.length === 0) {
+        res.send("no record found with id " + req.params.faqId)
+        return;
+    }
+    console.log(`${queryResponse.matches.length} record found for edit`);
+
 
     const response = await openai.createEmbedding({
         model: "text-embedding-ada-002",
@@ -132,31 +170,60 @@ router.put('/faq/:faqId', async (req, res, next) => {
     };
     const upsertResponse = await index.upsert({ upsertRequest });
 
-
-
-
     res.send('faq updated');
 })
-router.delete('/faqs/:faqId', async (req, res, next) => {
 
-   
+router.delete('/faq/:faqId', async (req, res, next) => {
+
+    const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
+
+    const queryResponse = await index.query({
+        queryRequest: {
+            id: req.params.faqId,
+            topK: 1,
+            includeValues: true,
+            includeMetadata: true,
+            namespace: process.env.PINECONE_NAME_SPACE
+        }
+    });
+
+    if (queryResponse.matches.length === 0) {
+        res.send("no record found with id " + req.params.faqId)
+        return;
+    }
+    console.log(`${queryResponse.matches.length} record found for delete`);
+
+    const deleteResponse = await index.delete1({
+        ids: [req.params.faqId], // ["id123", "id456", "id789"]
+        namespace: process.env.PINECONE_NAME_SPACE
+    })
+
+    console.log("deleteResponse: ", deleteResponse);
     res.send(' deleted ');
 })
-
 router.delete('/faqs', async (req, res, next) => {
+
+    if (!req?.body?.id || !req?.body?.id?.length === 0) {
+        res.status(403).send(`required parameter missing, 
+        please provide id array in body with one or more ids. 
+        example request body:
+        {
+            id: ["id1", "id2", ... , "idn"],
+        }
+        `)
+        return;
+    }
 
     const index = pinecone.Index(process.env.PINECONE_INDEX_NAME);
     const deleteResponse = await index.delete1({
-        deleteAll: true,
+        // deleteAll: true,
+        ids: req?.body?.id,
         namespace: process.env.PINECONE_NAME_SPACE
     })
     console.log("deleteResponse: ", deleteResponse);
 
     res.send('all faqs deleted ');
 })
-
-
-
 
 
 export default router
